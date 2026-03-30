@@ -1,0 +1,34 @@
+name: "✅ DevSecOps: Auditoría Estática (Battlellama SDK)"
+
+on:
+  workflow_call:
+    # No necesita secretos externos. Corre aislado en el repo del cliente.
+
+jobs:
+  security-audit:
+    name: "Static Analysis (SAST & Vulnerabilidades)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Clonar Código del Cliente"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necesario para auditar el historial de git (contraseñas borradas)
+
+      - name: "Auditoría de Secretos (Gitleaks)"
+        # Si encuentra contraseñas o tokens expuestos, fallará y bloqueará el build.
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false 
+          GITLEAKS_ENABLE_SUMMARY: true
+
+      - name: "Auditoría de Vulnerabilidades (Trivy FS)"
+        # Escanea directorios y dependencias buscando CVEs críticos.
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH' # Las que ponen en riesgo tu VPS real
+          ignore-unfixed: true
+          exit-code: '1' # CRÍTICO: Suspende a los desarrolladores y les exige parchear.
