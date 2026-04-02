@@ -23,6 +23,11 @@ on:
         default: ""
         required: false
         type: string
+      use-kustomize:
+        description: "Set to 'true' to render kustomize templates before scanning"
+        default: "false"
+        required: false
+        type: string
 
 # ENFORCED BEST PRACTICE: Principle of Least Privilege
 permissions:
@@ -38,11 +43,23 @@ jobs:
         with:
           fetch-depth: 1 # We just need the code to scan, not git history
 
+      - name: "Render Kustomize Targets"
+        if: ${{ inputs.use-kustomize == 'true' }}
+        run: |
+          mkdir -p ./.trivy-rendered
+          find . -type f -name "kustomization.yaml" -not -path "*/\.*" | while read file; do
+            dir=$(dirname "$file")
+            filename=$(echo "$dir" | sed -e 's/^\.\///' -e 's/\//-/g')
+            echo "Building $dir into $filename.yaml..."
+            kubectl kustomize "$dir" > "./.trivy-rendered/$filename.yaml"
+          done
+          echo "Kustomize build complete."
+
       - name: "IaC Misconfiguration Scan (Trivy Config)"
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: 'config'
-          scan-ref: ${{ inputs.scan-path }}
+          scan-ref: ${{ inputs.use-kustomize == 'true' && './.trivy-rendered' || inputs.scan-path }}
           format: 'table'
           severity: ${{ inputs.severity }}
           ignore-unfixed: true
