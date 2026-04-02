@@ -18,6 +18,11 @@ on:
         default: "CRITICAL,HIGH"
         required: false
         type: string
+      skip-files:
+        description: "Comma-separated list of files to skip during the scan"
+        default: ""
+        required: false
+        type: string
 
 # ENFORCED BEST PRACTICE: Principle of Least Privilege
 permissions:
@@ -42,3 +47,4 @@ jobs:
           severity: ${{ inputs.severity }}
           ignore-unfixed: true
           exit-code: ${{ inputs.exit-code }}
+          skip-files: ${{ inputs.skip-files }}
