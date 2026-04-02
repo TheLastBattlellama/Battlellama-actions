@@ -1,0 +1,44 @@
+name: "🛡️ DevSecOps: IaC Security Scan (Battlellama SDK)"
+
+on:
+  workflow_call:
+    inputs:
+      scan-path:
+        description: "Path to scan for Infrastructure as Code misconfigurations"
+        default: "."
+        required: false
+        type: string
+      exit-code:
+        description: "Exit code to return if vulnerabilities are found (1 to fail, 0 to warn)"
+        default: "1"
+        required: false
+        type: string
+      severity:
+        description: "Severities of misconfigurations to fail on"
+        default: "CRITICAL,HIGH"
+        required: false
+        type: string
+
+# ENFORCED BEST PRACTICE: Principle of Least Privilege
+permissions:
+  contents: read
+
+jobs:
+  iac-security-audit:
+    name: "Infrastructure Analysis (Misconfigs & Vulnerabilities)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout source code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1 # We just need the code to scan, not git history
+
+      - name: "IaC Misconfiguration Scan (Trivy Config)"
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: 'config'
+          scan-ref: ${{ inputs.scan-path }}
+          format: 'table'
+          severity: ${{ inputs.severity }}
+          ignore-unfixed: true
+          exit-code: ${{ inputs.exit-code }}
