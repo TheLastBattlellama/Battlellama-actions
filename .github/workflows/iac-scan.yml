@@ -1,0 +1,109 @@
+# ─────────────────────────────────────────────────────────
+# 🛡️ IaC Scan — Trivy Config for Kubernetes/Terraform/CloudFormation
+# ─────────────────────────────────────────────────────────
+# Scans Infrastructure as Code for security misconfigurations.
+# Supports Kustomize rendering: auto-discovers kustomization.yaml files,
+# builds them into plain YAML, and scans the rendered output.
+#
+# Usage:
+#   uses: TheLastBattlellama/Battlellama-actions/.github/workflows/iac-scan.yml@main
+#   with:
+#     use-kustomize: "true"
+#     exit-code: "1"
+
+name: "🛡️ IaC Scan"
+
+on:
+  workflow_call:
+    inputs:
+      scan-path:
+        description: "Path to scan (used when use-kustomize is false)"
+        default: "."
+        required: false
+        type: string
+      exit-code:
+        description: "1 = block pipeline on findings, 0 = warn only"
+        default: "1"
+        required: false
+        type: string
+      severity:
+        description: "Severities to flag (CRITICAL, HIGH, MEDIUM, LOW)"
+        default: "CRITICAL,HIGH"
+        required: false
+        type: string
+      skip-files:
+        description: "Comma-separated files to skip"
+        default: ""
+        required: false
+        type: string
+      use-kustomize:
+        description: "Auto-discover and render kustomization.yaml files before scanning"
+        default: "false"
+        required: false
+        type: string
+      kustomize-exclude-dirs:
+        description: "Comma-separated directories to exclude from kustomize rendering"
+        default: ""
+        required: false
+        type: string
+      kustomize-mount-template:
+        description: "Template directory to mount at apps/__scan_test/ for path resolution"
+        default: ""
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  iac-scan:
+    name: "Infrastructure Misconfiguration Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: "Render Kustomize Targets"
+        if: ${{ inputs.use-kustomize == 'true' }}
+        run: |
+          mkdir -p ./.trivy-rendered
+
+          # Mount template at correct depth for kustomize path resolution
+          if [ -n "${{ inputs.kustomize-mount-template }}" ] && [ -d "./${{ inputs.kustomize-mount-template }}" ]; then
+            echo "Mounting ${{ inputs.kustomize-mount-template }} at apps/__scan_test/..."
+            cp -r "./${{ inputs.kustomize-mount-template }}" ./apps/__scan_test
+          fi
+
+          # Build exclude args from comma-separated input
+          EXCLUDE_ARGS=""
+          if [ -n "${{ inputs.kustomize-exclude-dirs }}" ]; then
+            IFS=',' read -ra DIRS <<< "${{ inputs.kustomize-exclude-dirs }}"
+            for dir in "${DIRS[@]}"; do
+              dir=$(echo "$dir" | xargs)
+              EXCLUDE_ARGS="$EXCLUDE_ARGS -not -path \"./$dir/*\""
+            done
+          fi
+
+          eval "find . -type f -name 'kustomization.yaml' -not -path '*/\.*' $EXCLUDE_ARGS" | while read file; do
+            dir=$(dirname "$file")
+            filename=$(echo "$dir" | sed -e 's/^\.\///' -e 's/\//-/g')
+            echo "Building $dir into $filename.yaml..."
+            kubectl kustomize "$dir" > "./.trivy-rendered/$filename.yaml" 2>&1 || echo "⚠️ Failed to render $dir (skipping)"
+          done
+
+          # Cleanup temp mount
+          rm -rf ./apps/__scan_test 2>/dev/null
+          echo "Kustomize build complete."
+
+      - name: "IaC Scan (Trivy Config)"
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: 'config'
+          scan-ref: ${{ inputs.use-kustomize == 'true' && './.trivy-rendered' || inputs.scan-path }}
+          format: 'table'
+          severity: ${{ inputs.severity }}
+          ignore-unfixed: true
+          exit-code: ${{ inputs.exit-code }}
+          skip-files: ${{ inputs.skip-files }}

@@ -1,0 +1,79 @@
+# ─────────────────────────────────────────────────────────
+# ⚛️ SAST JavaScript/TypeScript — Semgrep for React, Node, Express
+# ─────────────────────────────────────────────────────────
+# Static Application Security Testing for JS/TS projects.
+# Detects XSS, prototype pollution, insecure dependencies, etc.
+#
+# Usage:
+#   uses: TheLastBattlellama/Battlellama-actions/.github/workflows/sast-javascript.yml@main
+#   with:
+#     framework: "react"    # react | nextjs | express | generic
+
+name: "⚛️ SAST JavaScript"
+
+on:
+  workflow_call:
+    inputs:
+      framework:
+        description: "JS/TS framework (react, nextjs, express, generic)"
+        default: "generic"
+        required: false
+        type: string
+      exit-code:
+        description: "1 = block pipeline on findings, 0 = warn only"
+        default: "1"
+        required: false
+        type: string
+      scan-path:
+        description: "Path to scan"
+        default: "."
+        required: false
+        type: string
+      extra-rules:
+        description: "Additional Semgrep rulesets (comma-separated)"
+        default: ""
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sast-javascript:
+    name: "JS/TS SAST (${{ inputs.framework }})"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Build Ruleset"
+        id: rules
+        run: |
+          RULES="p/javascript p/typescript"
+
+          case "${{ inputs.framework }}" in
+            react)    RULES="$RULES p/react" ;;
+            nextjs)   RULES="$RULES p/react p/nextjs" ;;
+            express)  RULES="$RULES p/expressjs" ;;
+          esac
+
+          # Always include security baseline
+          RULES="$RULES p/security-audit"
+
+          # Append extra rules
+          if [ -n "${{ inputs.extra-rules }}" ]; then
+            IFS=',' read -ra EXTRA <<< "${{ inputs.extra-rules }}"
+            for rule in "${EXTRA[@]}"; do
+              RULES="$RULES $(echo "$rule" | xargs)"
+            done
+          fi
+
+          echo "rules=$RULES" >> "$GITHUB_OUTPUT"
+          echo "Using rulesets: $RULES"
+
+      - name: "Semgrep SAST"
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: ${{ steps.rules.outputs.rules }}
+        env:
+          SEMGREP_RULES: ${{ steps.rules.outputs.rules }}

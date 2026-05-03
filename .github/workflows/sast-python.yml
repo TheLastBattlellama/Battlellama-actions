@@ -1,0 +1,79 @@
+# ─────────────────────────────────────────────────────────
+# 🐍 SAST Python — Semgrep for Django, FastAPI, Flask
+# ─────────────────────────────────────────────────────────
+# Static Application Security Testing for Python projects.
+# Detects SQL injection, XSS, insecure deserialization, SSRF, etc.
+#
+# Usage:
+#   uses: TheLastBattlellama/Battlellama-actions/.github/workflows/sast-python.yml@main
+#   with:
+#     framework: "django"    # django | fastapi | flask | generic
+
+name: "🐍 SAST Python"
+
+on:
+  workflow_call:
+    inputs:
+      framework:
+        description: "Python framework (django, fastapi, flask, generic)"
+        default: "generic"
+        required: false
+        type: string
+      exit-code:
+        description: "1 = block pipeline on findings, 0 = warn only"
+        default: "1"
+        required: false
+        type: string
+      scan-path:
+        description: "Path to scan"
+        default: "."
+        required: false
+        type: string
+      extra-rules:
+        description: "Additional Semgrep rulesets (comma-separated, e.g. 'p/owasp-top-ten,p/secrets')"
+        default: ""
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  sast-python:
+    name: "Python SAST (${{ inputs.framework }})"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Build Ruleset"
+        id: rules
+        run: |
+          RULES="p/python"
+
+          case "${{ inputs.framework }}" in
+            django)   RULES="$RULES p/django p/python-django-security" ;;
+            fastapi)  RULES="$RULES p/python-fastapi" ;;
+            flask)    RULES="$RULES p/flask" ;;
+          esac
+
+          # Always include security baseline
+          RULES="$RULES p/bandit p/security-audit"
+
+          # Append extra rules
+          if [ -n "${{ inputs.extra-rules }}" ]; then
+            IFS=',' read -ra EXTRA <<< "${{ inputs.extra-rules }}"
+            for rule in "${EXTRA[@]}"; do
+              RULES="$RULES $(echo "$rule" | xargs)"
+            done
+          fi
+
+          echo "rules=$RULES" >> "$GITHUB_OUTPUT"
+          echo "Using rulesets: $RULES"
+
+      - name: "Semgrep SAST"
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: ${{ steps.rules.outputs.rules }}
+        env:
+          SEMGREP_RULES: ${{ steps.rules.outputs.rules }}

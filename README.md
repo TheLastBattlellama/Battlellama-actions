@@ -1,53 +1,194 @@
-# TheLastBattlellama SDK (Actions)
+# 🦙 Battlellama Actions
 
-Welcome to the **Battlellama Platform SDK**. This repository hosts the central, enterprise-grade reusable GitHub Actions Workflows used across the entire ecosystem. 
+Modular, security-first GitHub Actions workflows for building, scanning, and shipping containerized applications.
 
-By centralizing CI logic into reusable templates, we enforce a strict **Zero-Trust Security Model** across all multi-tenant applications deployed to our GitOps infrastructure (ArgoCD).
+**Pick the modules you need. Compose your pipeline. Ship with confidence.**
 
-## Overview
+## Modules
 
-This repository provides highly opinionated pipelines that standardize checking, building, and publishing containerized applications.
+### Core (language-agnostic)
 
-### 🛡️ 1. DevSecOps: Static Audit (`reusable-security-scan.yml`)
-Runs robust security scanners natively within the pull request / commit timeline to prevent vulnerabilities from ever reaching infrastructure.
-- **[Gitleaks]**: Deep history scans protecting against accidentally committed secrets, API keys, or infrastructure tokens.
-- **[Trivy]**: Filesystem vulnerability scanner halting the build (`exit-code: 1`) if `CRITICAL` or `HIGH` vulnerabilities are found in the project's dependencies or base images.
+| Module | File | Purpose |
+|---|---|---|
+| 🛡️ **Security Scan** | `security-scan.yml` | Gitleaks (secrets) + Trivy FS (dependencies) |
+| 📦 **Docker Build** | `docker-build.yml` | Build, tag, push to GHCR + image CVE scan |
+| 🛡️ **IaC Scan** | `iac-scan.yml` | Trivy Config for K8s/Terraform misconfigurations |
 
-### 📦 2. Cloud Builder (`reusable-docker-build-push.yml`)
-An ephemeral OCI builder hooked natively to the GitHub Container Registry (GHCR). 
-- Leverages native `gha` docker cache bindings to heavily compress build times.
-- Establishes automated precise tagging (`sha...long`) mandatory for continuous delivery via ArgoCD Image Updater.
-- Relies exclusively on short-lived, permission-bound GitHub tokens (`secrets: inherit`) rather than persistent service account passwords.
+### SAST (language-specific)
+
+| Module | File | Frameworks |
+|---|---|---|
+| 🐍 **SAST Python** | `sast-python.yml` | Django · FastAPI · Flask |
+| ⚛️ **SAST JavaScript** | `sast-javascript.yml` | React · Next.js · Express |
+
+> **Composable**: Each module is independent. Use only what you need.
 
 ---
 
-## 🚀 How to Use (For Tenant Apps)
+## Quick Start
 
-To use the Battlellama SDK, applications simply need to create a workflow file (e.g. `.github/workflows/deploy.yml`) and reference these reusable actions. 
-
-### Basic Usage Example (NodeJS/Python/etc Frontend & Backend)
+### Minimal — just secrets + dependencies
 
 ```yaml
-name: "🏗️ CI/CD: My Awesome App"
-
-on:
-  push:
-    branches: [ "main" ]
-
 jobs:
-  # 1. Enforce Base Security Rules (Obligatory)
-  security-check:
-    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/reusable-security-scan.yml@main
-
-  # 2. Build & Deploy to Registry (Depends on security passing)
-  build-and-publish:
-    needs: security-check
-    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/reusable-docker-build-push.yml@main
-    with:
-      image-name: "my-awesome-app"       # Output image name required
-      dockerfile-path: "./Dockerfile"    # (Optional) Defaults to "."
-      build-context: "."                 # (Optional) Defaults to "."
-    secrets: inherit                     # Passes temporary auth context to publish the image
+  security:
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/security-scan.yml@main
 ```
 
-*Note: For the build action to work correctly, ensure the calling repository configuration allows GitHub Actions to read and write to Packages (GHCR).*
+### React + Django fullstack
+
+```yaml
+jobs:
+  security:
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/security-scan.yml@main
+
+  sast-backend:
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/sast-python.yml@main
+    with:
+      framework: "django"
+
+  sast-frontend:
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/sast-javascript.yml@main
+    with:
+      framework: "react"
+
+  build:
+    needs: [security, sast-backend, sast-frontend]
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/docker-build.yml@main
+    with:
+      image-name: "my-app"
+    secrets: inherit
+```
+
+### React + FastAPI fullstack
+
+```yaml
+jobs:
+  security:
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/security-scan.yml@main
+
+  sast-backend:
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/sast-python.yml@main
+    with:
+      framework: "fastapi"
+
+  sast-frontend:
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/sast-javascript.yml@main
+    with:
+      framework: "react"
+
+  build:
+    needs: [security, sast-backend, sast-frontend]
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/docker-build.yml@main
+    with:
+      image-name: "my-app"
+    secrets: inherit
+```
+
+### GitOps repo (K8s manifests only)
+
+```yaml
+jobs:
+  iac:
+    uses: TheLastBattlellama/Battlellama-actions/.github/workflows/iac-scan.yml@main
+    with:
+      use-kustomize: "true"
+```
+
+---
+
+## Module Reference
+
+### 🛡️ Security Scan
+
+Language-agnostic. Scans for leaked secrets and vulnerable dependencies.
+
+| Input | Default | Description |
+|---|---|---|
+| `severity` | `CRITICAL,HIGH` | Severities to flag |
+| `exit-code` | `1` | `1` = blocking, `0` = warning |
+| `scan-path` | `.` | Path to scan |
+| `gitleaks-enabled` | `true` | Toggle secret scanning |
+| `trivy-fs-enabled` | `true` | Toggle dependency scanning |
+
+---
+
+### 📦 Docker Build & Push
+
+Builds, tags, pushes to GHCR, and scans the image for CVEs.
+
+| Input | Default | Description |
+|---|---|---|
+| `image-name` | **(required)** | Image name (`my-app` → `ghcr.io/<owner>/my-app`) |
+| `dockerfile-path` | `./Dockerfile` | Path to Dockerfile |
+| `build-context` | `.` | Docker build context |
+| `build-args` | `""` | Build arguments (`KEY=VALUE`, one per line) |
+| `platforms` | `linux/amd64` | Target platforms |
+| `push` | `true` | `false` for dry-run builds |
+| `scan-after-build` | `true` | Run Trivy CVE scan on built image |
+| `scan-severity` | `CRITICAL,HIGH` | Image scan severity filter |
+| `scan-exit-code` | `1` | `1` = fail on CVEs, `0` = warn |
+
+**Auto-generated tags**: `<sha>` · `latest` · `<branch>` · `<semver>`
+
+---
+
+### 🛡️ IaC Scan
+
+Scans Infrastructure as Code for misconfigurations. Supports Kustomize auto-rendering.
+
+| Input | Default | Description |
+|---|---|---|
+| `scan-path` | `.` | Path to scan (when `use-kustomize` is `false`) |
+| `exit-code` | `1` | `1` = blocking, `0` = warning |
+| `severity` | `CRITICAL,HIGH` | Severities to flag |
+| `skip-files` | `""` | Files to skip |
+| `use-kustomize` | `false` | Auto-render `kustomization.yaml` files |
+| `kustomize-exclude-dirs` | `""` | Dirs to exclude from rendering |
+| `kustomize-mount-template` | `""` | Template dir to mount for path resolution |
+
+---
+
+### 🐍 SAST Python
+
+Semgrep-powered SAST with framework-specific rulesets.
+
+| Input | Default | Description |
+|---|---|---|
+| `framework` | `generic` | `django` · `fastapi` · `flask` · `generic` |
+| `exit-code` | `1` | `1` = blocking, `0` = warning |
+| `scan-path` | `.` | Path to scan |
+| `extra-rules` | `""` | Additional Semgrep rulesets (comma-separated) |
+
+**Included rulesets**: `p/python` + `p/bandit` + `p/security-audit` + framework-specific rules
+
+---
+
+### ⚛️ SAST JavaScript/TypeScript
+
+Semgrep-powered SAST with framework-specific rulesets.
+
+| Input | Default | Description |
+|---|---|---|
+| `framework` | `generic` | `react` · `nextjs` · `express` · `generic` |
+| `exit-code` | `1` | `1` = blocking, `0` = warning |
+| `scan-path` | `.` | Path to scan |
+| `extra-rules` | `""` | Additional Semgrep rulesets (comma-separated) |
+
+**Included rulesets**: `p/javascript` + `p/typescript` + `p/security-audit` + framework-specific rules
+
+---
+
+## Design Principles
+
+- **Modular** — Each workflow is independent. Compose what you need.
+- **Secure by default** — `exit-code: "1"` blocks the pipeline. Opt out with `"0"`.
+- **Zero config** — Sensible defaults. Just call the workflow.
+- **Configurable** — Every behavior can be overridden via inputs.
+- **Least privilege** — Only `contents: read` + `packages: write` (when pushing).
+- **Ephemeral auth** — No persistent tokens. Uses GitHub's OIDC `GITHUB_TOKEN`.
+- **Pinned versions** — All third-party actions are version-locked.
+
+## License
+
+MIT

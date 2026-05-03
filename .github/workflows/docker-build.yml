@@ -1,0 +1,119 @@
+# ─────────────────────────────────────────────────────────
+# 📦 Docker Build & Push — Build, tag, scan, and push to GHCR
+# ─────────────────────────────────────────────────────────
+# Builds a Docker image, pushes to GHCR, and optionally scans it for CVEs.
+# Tags are GitOps-ready: SHA (for Image Updater), semver, latest.
+#
+# Usage:
+#   uses: TheLastBattlellama/Battlellama-actions/.github/workflows/docker-build.yml@main
+#   with:
+#     image-name: "my-app"
+#   secrets: inherit
+
+name: "📦 Docker Build & Push"
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        description: "Image name without registry prefix (e.g. 'my-app' → ghcr.io/<owner>/my-app)"
+        required: true
+        type: string
+      dockerfile-path:
+        description: "Path to Dockerfile"
+        default: "./Dockerfile"
+        required: false
+        type: string
+      build-context:
+        description: "Docker build context directory"
+        default: "."
+        required: false
+        type: string
+      build-args:
+        description: "Docker build arguments (one per line, KEY=VALUE format)"
+        default: ""
+        required: false
+        type: string
+      platforms:
+        description: "Target platforms (e.g. 'linux/amd64,linux/arm64')"
+        default: "linux/amd64"
+        required: false
+        type: string
+      push:
+        description: "Push image to registry (set to 'false' for dry-run builds)"
+        default: "true"
+        required: false
+        type: string
+      scan-after-build:
+        description: "Run Trivy CVE scan on the built image"
+        default: "true"
+        required: false
+        type: string
+      scan-severity:
+        description: "Trivy scan severity filter"
+        default: "CRITICAL,HIGH"
+        required: false
+        type: string
+      scan-exit-code:
+        description: "1 = fail pipeline on CVE findings, 0 = warn only"
+        default: "1"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  docker-build:
+    name: "Build & Push OCI Image"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Setup Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+
+      - name: "Login to GHCR"
+        if: ${{ inputs.push == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Generate Image Metadata"
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ inputs.image-name }}
+          tags: |
+            type=sha,prefix=,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+
+      - name: "Build & Push"
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ inputs.build-context }}
+          file: ${{ inputs.dockerfile-path }}
+          push: ${{ inputs.push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ inputs.build-args }}
+          platforms: ${{ inputs.platforms }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: "Image CVE Scan (Trivy)"
+        if: ${{ inputs.scan-after-build == 'true' && inputs.push == 'true' }}
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/${{ inputs.image-name }}@${{ steps.build.outputs.digest }}
+          format: 'table'
+          severity: ${{ inputs.scan-severity }}
+          ignore-unfixed: true
+          exit-code: ${{ inputs.scan-exit-code }}

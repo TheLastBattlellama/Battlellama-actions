@@ -1,0 +1,73 @@
+# ─────────────────────────────────────────────────────────
+# 🛡️ Security Scan — Gitleaks + Trivy FS
+# ─────────────────────────────────────────────────────────
+# Language-agnostic scan for leaked secrets and dependency vulnerabilities.
+# Should run BEFORE building Docker images — fail fast, shift left.
+#
+# For language-specific SAST, add sast-python.yml or sast-javascript.yml
+#
+# Usage:
+#   uses: TheLastBattlellama/Battlellama-actions/.github/workflows/security-scan.yml@main
+
+name: "🛡️ Security Scan"
+
+on:
+  workflow_call:
+    inputs:
+      severity:
+        description: "Severities to flag for Trivy (CRITICAL, HIGH, MEDIUM, LOW)"
+        default: "CRITICAL,HIGH"
+        required: false
+        type: string
+      exit-code:
+        description: "1 = block pipeline on findings, 0 = warn only"
+        default: "1"
+        required: false
+        type: string
+      scan-path:
+        description: "Path to scan for vulnerabilities"
+        default: "."
+        required: false
+        type: string
+      gitleaks-enabled:
+        description: "Enable Gitleaks secret scanning"
+        default: "true"
+        required: false
+        type: string
+      trivy-fs-enabled:
+        description: "Enable Trivy filesystem vulnerability scanning"
+        default: "true"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  security-scan:
+    name: "Secrets & Dependency Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history required for Gitleaks
+
+      - name: "Secret Scanning (Gitleaks)"
+        if: ${{ inputs.gitleaks-enabled == 'true' }}
+        uses: gitleaks/gitleaks-action@v2.3.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
+          GITLEAKS_ENABLE_SUMMARY: true
+
+      - name: "Dependency Scanning (Trivy FS)"
+        if: ${{ inputs.trivy-fs-enabled == 'true' }}
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: 'fs'
+          scan-ref: ${{ inputs.scan-path }}
+          format: 'table'
+          severity: ${{ inputs.severity }}
+          ignore-unfixed: true
+          exit-code: ${{ inputs.exit-code }}
