@@ -6,8 +6,9 @@
 #
 # Jobs:
 #   lint         — actionlint (catches expression errors, shellcheck issues)
+#   validate-semgrep-configs — verifies all referenced registry packs exist
 #   test-sast-js — calls sast-javascript.yml against tests/fixtures/js
-#   test-sast-py — calls sast-python.yml against tests/fixtures/python
+#   test-sast-py-* — calls sast-python.yml against tests/fixtures/python
 
 name: "🔍 CI"
 
@@ -24,18 +25,71 @@ jobs:
       - uses: actions/checkout@v4
       - uses: rhysd/actionlint@v1
 
+  validate-semgrep-configs:
+    name: "Validate Semgrep registry configs"
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Check registry packs"
+        run: |
+          configs=(
+            p/python
+            p/django
+            p/fastapi
+            p/flask
+            p/bandit
+            p/security-audit
+            p/javascript
+            p/typescript
+            p/react
+            p/nextjs
+            p/expressjs
+          )
+
+          for config in "${configs[@]}"; do
+            status=$(curl -sS -o /dev/null -w '%{http_code}' "https://semgrep.dev/c/$config")
+            if [ "$status" != "200" ]; then
+              echo "Semgrep config '$config' returned HTTP $status"
+              exit 1
+            fi
+          done
+
   test-sast-js:
     name: "Integration: SAST JavaScript"
-    needs: lint
+    needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-javascript.yml
     with:
       framework: react
       scan-path: tests/fixtures/js
 
-  test-sast-python:
-    name: "Integration: SAST Python"
-    needs: lint
+  test-sast-python-generic:
+    name: "Integration: SAST Python (generic)"
+    needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-python.yml
     with:
       framework: generic
+      scan-path: tests/fixtures/python
+
+  test-sast-python-django:
+    name: "Integration: SAST Python (django)"
+    needs: [lint, validate-semgrep-configs]
+    uses: ./.github/workflows/sast-python.yml
+    with:
+      framework: django
+      scan-path: tests/fixtures/python
+
+  test-sast-python-fastapi:
+    name: "Integration: SAST Python (fastapi)"
+    needs: [lint, validate-semgrep-configs]
+    uses: ./.github/workflows/sast-python.yml
+    with:
+      framework: fastapi
+      scan-path: tests/fixtures/python
+
+  test-sast-python-flask:
+    name: "Integration: SAST Python (flask)"
+    needs: [lint, validate-semgrep-configs]
+    uses: ./.github/workflows/sast-python.yml
+    with:
+      framework: flask
       scan-path: tests/fixtures/python
