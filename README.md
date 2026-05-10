@@ -1,5 +1,8 @@
 # 🦙 Battlellama Actions
 
+[![CI](https://github.com/TheLastBattlellama/Battlellama-actions/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/TheLastBattlellama/Battlellama-actions/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
+
 Modular, security-first GitHub Actions workflows for building, scanning, and shipping containerized applications.
 
 **Pick the modules you need. Compose your pipeline. Ship with confidence.**
