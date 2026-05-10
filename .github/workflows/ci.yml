@@ -23,7 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: rhysd/actionlint@v1
+      - name: "Install actionlint"
+        run: bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+      - name: "Run actionlint"
+        run: ./actionlint -color
 
   validate-semgrep-configs:
     name: "Validate Semgrep registry configs"
