@@ -85,7 +85,7 @@ jobs:
 
       - name: "Normalize owner to lowercase"
         id: owner
-        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - name: "Generate Image Metadata"
         id: meta

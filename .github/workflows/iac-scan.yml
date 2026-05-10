@@ -86,7 +86,7 @@ jobs:
             done
           fi
 
-          eval "find . -type f -name 'kustomization.yaml' -not -path '*/\.*' $EXCLUDE_ARGS" | while read file; do
+          eval "find . -type f -name 'kustomization.yaml' -not -path '*/\.*' $EXCLUDE_ARGS" | while IFS= read -r file; do
             dir=$(dirname "$file")
             filename=$(echo "$dir" | sed -e 's/^\.\///' -e 's/\//-/g')
             echo "Building $dir into $filename.yaml..."
