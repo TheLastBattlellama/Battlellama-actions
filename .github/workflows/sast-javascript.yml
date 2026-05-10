@@ -48,10 +48,13 @@ jobs:
 
       - name: "Build Ruleset"
         id: rules
+        env:
+          FRAMEWORK: ${{ inputs.framework }}
+          EXTRA_RULES: ${{ inputs.extra-rules }}
         run: |
           RULES="p/javascript p/typescript"
 
-          case "${{ inputs.framework }}" in
+          case "$FRAMEWORK" in
             react)    RULES="$RULES p/react" ;;
             nextjs)   RULES="$RULES p/react p/nextjs" ;;
             express)  RULES="$RULES p/expressjs" ;;
@@ -61,8 +64,8 @@ jobs:
           RULES="$RULES p/security-audit"
 
           # Append extra rules
-          if [ -n "${{ inputs.extra-rules }}" ]; then
-            IFS=',' read -ra EXTRA <<< "${{ inputs.extra-rules }}"
+          if [ -n "$EXTRA_RULES" ]; then
+            IFS=',' read -ra EXTRA <<< "$EXTRA_RULES"
             for rule in "${EXTRA[@]}"; do
               RULES="$RULES $(echo "$rule" | xargs)"
             done
@@ -75,6 +78,9 @@ jobs:
         run: |
           pip install semgrep --quiet
           configs=$(echo "$SEMGREP_RULES" | tr ' ' '\n' | sed 's/^/--config /' | tr '\n' ' ')
-          semgrep scan $configs --error
+          if [ "$EXIT_CODE" = "1" ]; then EXIT_FLAG="--error"; else EXIT_FLAG=""; fi
+          semgrep scan $configs $EXIT_FLAG "$SCAN_PATH"
         env:
           SEMGREP_RULES: ${{ steps.rules.outputs.rules }}
+          EXIT_CODE: ${{ inputs.exit-code }}
+          SCAN_PATH: ${{ inputs.scan-path }}

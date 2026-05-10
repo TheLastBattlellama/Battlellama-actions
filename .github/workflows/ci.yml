@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────
+# 🔍 CI — Lint & Integration Tests
+# ─────────────────────────────────────────────────────────
+# Validates workflow files and runs integration tests against
+# clean fixtures before changes reach users of this action library.
+#
+# Jobs:
+#   lint         — actionlint (catches expression errors, shellcheck issues)
+#   test-sast-js — calls sast-javascript.yml against tests/fixtures/js
+#   test-sast-py — calls sast-python.yml against tests/fixtures/python
+
+name: "🔍 CI"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: "Lint workflows (actionlint)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rhysd/actionlint@v1
+
+  test-sast-js:
+    name: "Integration: SAST JavaScript"
+    needs: lint
+    uses: ./.github/workflows/sast-javascript.yml
+    with:
+      framework: react
+      scan-path: tests/fixtures/js
+
+  test-sast-python:
+    name: "Integration: SAST Python"
+    needs: lint
+    uses: ./.github/workflows/sast-python.yml
+    with:
+      framework: generic
+      scan-path: tests/fixtures/python
