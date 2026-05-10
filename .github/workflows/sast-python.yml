@@ -72,8 +72,8 @@ jobs:
           echo "Using rulesets: $RULES"
 
       - name: "Semgrep SAST"
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: ${{ steps.rules.outputs.rules }}
+        run: |
+          pip install semgrep --quiet
+          semgrep scan --config ${{ steps.rules.outputs.rules }} --error
         env:
           SEMGREP_RULES: ${{ steps.rules.outputs.rules }}
