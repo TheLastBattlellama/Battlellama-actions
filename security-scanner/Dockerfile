@@ -11,9 +11,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 FROM alpine:3.20
 
-ARG GITLEAKS_VERSION=8.21.2
-ARG TRIVY_VERSION=0.52.2
-ARG SEMGREP_VERSION=1.78.0
+ARG GITLEAKS_VERSION=8.30.1
+ARG TRIVY_VERSION=0.70.0
+ARG SEMGREP_VERSION=1.163.0
 
 # ── System dependencies ───────────────────────────────────────────────────────
 RUN apk add --no-cache \

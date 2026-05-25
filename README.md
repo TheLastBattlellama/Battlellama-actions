@@ -258,9 +258,9 @@ When using `--all`, the scanner inspects the project root and enables:
 Versions are pinned in `security-scanner/Dockerfile` as `ARG` values. To bump:
 
 ```dockerfile
-ARG GITLEAKS_VERSION=8.21.2   # https://github.com/gitleaks/gitleaks/releases
-ARG TRIVY_VERSION=0.52.2      # https://github.com/aquasecurity/trivy/releases
-ARG SEMGREP_VERSION=1.78.0    # https://pypi.org/project/semgrep/#history
+ARG GITLEAKS_VERSION=8.30.1   # https://github.com/gitleaks/gitleaks/releases
+ARG TRIVY_VERSION=0.70.0      # https://github.com/aquasecurity/trivy/releases
+ARG SEMGREP_VERSION=1.163.0   # https://pypi.org/project/semgrep/#history
 ```
 
 Rebuild and push — the CI workflow (`build-security-scanner.yml`) publishes automatically on push to `main` when `security-scanner/**` changes.

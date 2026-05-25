@@ -49,13 +49,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Full history required for Gitleaks
 
       - name: "Secret Scanning (Gitleaks)"
         if: ${{ inputs.gitleaks-enabled == 'true' }}
-        uses: gitleaks/gitleaks-action@v2.3.4
+        uses: gitleaks/gitleaks-action@v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
