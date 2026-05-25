@@ -182,6 +182,91 @@ Semgrep-powered SAST with framework-specific rulesets.
 
 ---
 
+---
+
+## Run Locally
+
+The `security-scanner` image packages Gitleaks, Trivy, and Semgrep with pinned versions. Run the same scans locally without pushing to CI.
+
+### First-time setup
+
+```bash
+# Pull from GHCR (once published)
+docker pull ghcr.io/thelastbattlellama/security-scanner
+
+# Or build from source (when iterating on the scanner itself)
+docker build -t security-scanner \
+  https://github.com/TheLastBattlellama/Battlellama-actions.git#main:security-scanner
+```
+
+**Recommended — add a shell alias** so you can call it from any project:
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+alias scan='docker run --rm -v $(pwd):/project ghcr.io/thelastbattlellama/security-scanner'
+```
+
+### Usage
+
+```bash
+# Auto-detect stack — runs all applicable scans
+scan --all
+
+# Secrets + dependency scan only (no SAST)
+scan --secrets --fs
+
+# Python SAST (Django) on a subdirectory
+scan --python --framework django --path backend/
+
+# JavaScript SAST (Next.js)
+scan --javascript --framework nextjs --path frontend/
+
+# Warn instead of blocking (exit 0 on findings)
+scan --all --exit-code 0
+
+# Raise severity threshold
+scan --fs --severity CRITICAL
+```
+
+### Flags reference
+
+| Flag | Default | Description |
+|---|---|---|
+| `--all` | — | All scans + auto-detect Python/JS stack |
+| `--secrets` | — | Gitleaks secret scanning |
+| `--fs` | — | Trivy filesystem / dependency scan |
+| `--python` | — | Semgrep SAST for Python |
+| `--javascript` | — | Semgrep SAST for JavaScript/TypeScript |
+| `--framework` | auto | `django` · `fastapi` · `flask` · `react` · `nextjs` · `express` |
+| `--path` | `.` | Subpath to scan within the project |
+| `--severity` | `CRITICAL,HIGH` | Severity filter for Trivy |
+| `--exit-code` | `1` | `1` = block on findings · `0` = warn only |
+| `--extra-rules` | — | Additional Semgrep rulesets (comma-separated) |
+
+### Auto-detection (`--all`)
+
+When using `--all`, the scanner inspects the project root and enables:
+
+- **Always**: `--secrets` + `--fs`
+- **Python** if `requirements.txt` or `pyproject.toml` is found — framework detected from `manage.py` (Django) or dependency names
+- **JavaScript** if `package.json` is found — framework detected from `next`, `react`, or `express` deps
+
+> The project directory is mounted at `/project` inside the container. The `--path` flag refers to a subpath within that mount.
+
+### Updating tool versions
+
+Versions are pinned in `security-scanner/Dockerfile` as `ARG` values. To bump:
+
+```dockerfile
+ARG GITLEAKS_VERSION=8.21.2   # https://github.com/gitleaks/gitleaks/releases
+ARG TRIVY_VERSION=0.52.2      # https://github.com/aquasecurity/trivy/releases
+ARG SEMGREP_VERSION=1.78.0    # https://pypi.org/project/semgrep/#history
+```
+
+Rebuild and push — the CI workflow (`build-security-scanner.yml`) publishes automatically on push to `main` when `security-scanner/**` changes.
+
+---
+
 ## Design Principles
 
 - **Modular** — Each workflow is independent. Compose what you need.
