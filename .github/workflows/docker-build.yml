@@ -60,14 +60,20 @@ on:
         required: false
         type: string
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
+  security-events: write
 
 jobs:
   docker-build:
     name: "Build & Push OCI Image"
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: "Checkout"
         uses: actions/checkout@v6
@@ -105,19 +111,40 @@ jobs:
           context: ${{ inputs.build-context }}
           file: ${{ inputs.dockerfile-path }}
           push: ${{ inputs.push }}
+          load: ${{ inputs.push != 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: ${{ inputs.build-args }}
           platforms: ${{ inputs.platforms }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          sbom: ${{ inputs.push == 'true' }}
+          provenance: ${{ inputs.push == 'true' && 'mode=max' || 'false' }}
 
-      - name: "Image CVE Scan (Trivy)"
-        if: ${{ inputs.scan-after-build == 'true' && inputs.push == 'true' }}
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: "Image CVE Scan (Trivy — SARIF)"
+        if: ${{ inputs.scan-after-build == 'true' }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
-          image-ref: ghcr.io/${{ steps.owner.outputs.name }}/${{ inputs.image-name }}@${{ steps.build.outputs.digest }}
-          format: 'table'
+          image-ref: ${{ inputs.push == 'true' && format('ghcr.io/{0}/{1}@{2}', steps.owner.outputs.name, inputs.image-name, steps.build.outputs.digest) || inputs.image-name }}
+          format: 'sarif'
+          output: trivy-image-results.sarif
           severity: ${{ inputs.scan-severity }}
           ignore-unfixed: true
-          exit-code: ${{ inputs.scan-exit-code }}
+
+      - name: "Upload Image Scan SARIF"
+        if: always()
+        continue-on-error: true  # SARIF upload requires GHAS on private repos; degrades gracefully
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: docker-image
+
+      - name: "Enforce Image Scan Gate"
+        if: ${{ inputs.scan-after-build == 'true' && inputs.scan-exit-code == '1' }}
+        run: |
+          trivy image \
+            --format table \
+            --severity "${{ inputs.scan-severity }}" \
+            --ignore-unfixed \
+            --exit-code 1 \
+            "${{ inputs.push == 'true' && format('ghcr.io/{0}/{1}@{2}', steps.owner.outputs.name, inputs.image-name, steps.build.outputs.digest) || inputs.image-name }}"

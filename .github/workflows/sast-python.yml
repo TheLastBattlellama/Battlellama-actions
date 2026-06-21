@@ -11,6 +11,10 @@
 
 name: "🐍 SAST Python"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_call:
     inputs:
@@ -37,11 +41,13 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   sast-python:
     name: "Python SAST (${{ inputs.framework }})"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: "Checkout"
         uses: actions/checkout@v6
@@ -74,19 +80,35 @@ jobs:
           echo "rules=$RULES" >> "$GITHUB_OUTPUT"
           echo "Using rulesets: $RULES"
 
-      - name: "Semgrep SAST"
+      - name: "Semgrep SAST (SARIF)"
         run: |
-          pip install semgrep --quiet
+          pip install semgrep==1.167.0 --quiet
           configs=()
           for config in $SEMGREP_RULES; do
             configs+=(--config "$config")
           done
-          args=("${configs[@]}")
-          if [ "$EXIT_CODE" = "1" ]; then
-            args+=(--error)
-          fi
-          semgrep scan "${args[@]}" "$SCAN_PATH"
+          semgrep scan "${configs[@]}" --sarif --output semgrep-python.sarif "$SCAN_PATH" || true
         env:
           SEMGREP_RULES: ${{ steps.rules.outputs.rules }}
-          EXIT_CODE: ${{ inputs.exit-code }}
+          SCAN_PATH: ${{ inputs.scan-path }}
+
+      - name: "Upload SARIF"
+        if: always()
+        continue-on-error: true  # SARIF upload requires GHAS on private repos; degrades gracefully
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-python.sarif
+          category: sast-python
+
+      - name: "Enforce Gate"
+        if: ${{ inputs.exit-code == '1' }}
+        run: |
+          pip install semgrep==1.167.0 --quiet 2>/dev/null
+          configs=()
+          for config in $SEMGREP_RULES; do
+            configs+=(--config "$config")
+          done
+          semgrep scan "${configs[@]}" --error "$SCAN_PATH"
+        env:
+          SEMGREP_RULES: ${{ steps.rules.outputs.rules }}
           SCAN_PATH: ${{ inputs.scan-path }}

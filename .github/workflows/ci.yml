@@ -17,19 +17,23 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: "Lint workflows (actionlint)"
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: "Install actionlint"
-        run: bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
       - name: "Run actionlint"
-        run: ./actionlint -color
+        uses: rhysd/actionlint@v1
 
   validate-semgrep-configs:
     name: "Validate Semgrep registry configs"
+    timeout-minutes: 10
     needs: lint
     runs-on: ubuntu-latest
     steps:
@@ -59,6 +63,7 @@ jobs:
 
   test-sast-js:
     name: "Integration: SAST JavaScript"
+    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-javascript.yml
     with:
@@ -67,6 +72,7 @@ jobs:
 
   test-sast-python-generic:
     name: "Integration: SAST Python (generic)"
+    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-python.yml
     with:
@@ -75,6 +81,7 @@ jobs:
 
   test-sast-python-django:
     name: "Integration: SAST Python (django)"
+    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-python.yml
     with:
@@ -83,6 +90,7 @@ jobs:
 
   test-sast-python-fastapi:
     name: "Integration: SAST Python (fastapi)"
+    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-python.yml
     with:
@@ -91,6 +99,7 @@ jobs:
 
   test-sast-python-flask:
     name: "Integration: SAST Python (flask)"
+    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-python.yml
     with:

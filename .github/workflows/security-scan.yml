@@ -42,32 +42,54 @@ on:
 
 permissions:
   contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   security-scan:
     name: "Secrets & Dependency Scan"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: "Checkout"
         uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Full history required for Gitleaks
 
-      - name: "Secret Scanning (Gitleaks)"
+      - name: "Secret Scanning (Gitleaks CLI)"
         if: ${{ inputs.gitleaks-enabled == 'true' }}
-        uses: gitleaks/gitleaks-action@v2.3.9
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks detect --source . --redact --exit-code "${EXIT_CODE}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
-          GITLEAKS_ENABLE_SUMMARY: true
+          EXIT_CODE: ${{ inputs.exit-code }}
 
-      - name: "Dependency Scanning (Trivy FS)"
+      - name: "Dependency Scanning (Trivy FS SARIF)"
         if: ${{ inputs.trivy-fs-enabled == 'true' }}
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: ${{ inputs.scan-path }}
-          format: 'table'
+          format: 'sarif'
+          output: 'trivy-fs-results.sarif'
           severity: ${{ inputs.severity }}
           ignore-unfixed: true
-          exit-code: ${{ inputs.exit-code }}
+
+      - name: "Upload Trivy FS SARIF"
+        if: always()
+        continue-on-error: true  # SARIF upload requires GHAS on private repos; degrades gracefully
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs-results.sarif
+
+      - name: "Enforce Trivy FS Gate"
+        if: ${{ inputs.exit-code == '1' && inputs.trivy-fs-enabled == 'true' }}
+        run: |
+          trivy fs --exit-code 1 --severity "$SEVERITY" --ignore-unfixed "$SCAN_PATH"
+        env:
+          SEVERITY: ${{ inputs.severity }}
+          SCAN_PATH: ${{ inputs.scan-path }}

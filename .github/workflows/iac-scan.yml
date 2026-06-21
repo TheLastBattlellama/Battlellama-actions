@@ -13,6 +13,10 @@
 
 name: "🛡️ IaC Scan"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_call:
     inputs:
@@ -54,11 +58,13 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   iac-scan:
     name: "Infrastructure Misconfiguration Scan"
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: "Checkout"
         uses: actions/checkout@v6
@@ -97,13 +103,34 @@ jobs:
           rm -rf ./apps/__scan_test 2>/dev/null
           echo "Kustomize build complete."
 
-      - name: "IaC Scan (Trivy Config)"
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: "IaC Scan (Trivy Config — SARIF)"
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           scan-type: 'config'
           scan-ref: ${{ inputs.use-kustomize == 'true' && './.trivy-rendered' || inputs.scan-path }}
-          format: 'table'
+          format: 'sarif'
+          output: 'trivy-iac-results.sarif'
           severity: ${{ inputs.severity }}
           ignore-unfixed: true
-          exit-code: ${{ inputs.exit-code }}
           skip-files: ${{ inputs.skip-files }}
+
+      - name: "Upload SARIF"
+        if: always()
+        continue-on-error: true  # SARIF upload requires GHAS on private repos; degrades gracefully
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-iac-results.sarif
+          category: iac-scan
+
+      - name: "Enforce Gate"
+        if: ${{ inputs.exit-code == '1' }}
+        env:
+          SEVERITY: ${{ inputs.severity }}
+          SCAN_REF: ${{ inputs.use-kustomize == 'true' && './.trivy-rendered' || inputs.scan-path }}
+          SKIP_FILES: ${{ inputs.skip-files }}
+        run: |
+          args=(--exit-code 1 --severity "$SEVERITY" --ignore-unfixed)
+          if [ -n "$SKIP_FILES" ]; then
+            args+=(--skip-files "$SKIP_FILES")
+          fi
+          trivy config "${args[@]}" "$SCAN_REF"
