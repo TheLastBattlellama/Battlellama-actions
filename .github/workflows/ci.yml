@@ -63,7 +63,6 @@ jobs:
 
   test-sast-js:
     name: "Integration: SAST JavaScript"
-    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-javascript.yml
     with:
@@ -72,7 +71,6 @@ jobs:
 
   test-sast-python-generic:
     name: "Integration: SAST Python (generic)"
-    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-python.yml
     with:
@@ -81,7 +79,6 @@ jobs:
 
   test-sast-python-django:
     name: "Integration: SAST Python (django)"
-    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-python.yml
     with:
@@ -90,7 +87,6 @@ jobs:
 
   test-sast-python-fastapi:
     name: "Integration: SAST Python (fastapi)"
-    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-python.yml
     with:
@@ -99,7 +95,6 @@ jobs:
 
   test-sast-python-flask:
     name: "Integration: SAST Python (flask)"
-    timeout-minutes: 15
     needs: [lint, validate-semgrep-configs]
     uses: ./.github/workflows/sast-python.yml
     with:
