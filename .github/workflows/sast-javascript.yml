@@ -84,9 +84,12 @@ jobs:
           for config in $SEMGREP_RULES; do
             configs+=(--config "$config")
           done
-          # Single scan: emit SARIF for Security tab + capture exit code for gate
-          semgrep scan "${configs[@]}" --sarif --output semgrep-js.sarif "$SCAN_PATH"
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          # Single scan: emit SARIF for Security tab + capture exit code for gate.
+          # --error makes semgrep exit 1 on findings; capture via || so set -e
+          # (bash -eo pipefail) doesn't abort before we write the gate output.
+          exit_code=0
+          semgrep scan "${configs[@]}" --error --sarif --output semgrep-js.sarif "$SCAN_PATH" || exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
         env:
           SEMGREP_RULES: ${{ steps.rules.outputs.rules }}
           SCAN_PATH: ${{ inputs.scan-path }}

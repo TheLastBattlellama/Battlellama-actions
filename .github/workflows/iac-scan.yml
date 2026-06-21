@@ -69,19 +69,22 @@ jobs:
 
       - name: "Render Kustomize Targets"
         if: ${{ inputs.use-kustomize == 'true' }}
+        env:
+          MOUNT_TEMPLATE: ${{ inputs.kustomize-mount-template }}
+          EXCLUDE_DIRS: ${{ inputs.kustomize-exclude-dirs }}
         run: |
           mkdir -p ./.trivy-rendered
 
           # Mount template at correct depth for kustomize path resolution
-          if [ -n "${{ inputs.kustomize-mount-template }}" ] && [ -d "./${{ inputs.kustomize-mount-template }}" ]; then
-            echo "Mounting ${{ inputs.kustomize-mount-template }} at apps/__scan_test/..."
-            cp -r "./${{ inputs.kustomize-mount-template }}" ./apps/__scan_test
+          if [ -n "$MOUNT_TEMPLATE" ] && [ -d "./$MOUNT_TEMPLATE" ]; then
+            echo "Mounting $MOUNT_TEMPLATE at apps/__scan_test/..."
+            cp -r "./$MOUNT_TEMPLATE" ./apps/__scan_test
           fi
 
           # Build exclude args from comma-separated input (array, no eval)
           FIND_ARGS=(-type f -name 'kustomization.yaml' -not -path '*/.*')
-          if [ -n "${{ inputs.kustomize-exclude-dirs }}" ]; then
-            IFS=',' read -ra DIRS <<< "${{ inputs.kustomize-exclude-dirs }}"
+          if [ -n "$EXCLUDE_DIRS" ]; then
+            IFS=',' read -ra DIRS <<< "$EXCLUDE_DIRS"
             for dir in "${DIRS[@]}"; do
               dir=$(echo "$dir" | xargs)
               FIND_ARGS+=(-not -path "./$dir/*")
