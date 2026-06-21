@@ -78,21 +78,23 @@ jobs:
             cp -r "./${{ inputs.kustomize-mount-template }}" ./apps/__scan_test
           fi
 
-          # Build exclude args from comma-separated input
-          EXCLUDE_ARGS=""
+          # Build exclude args from comma-separated input (array, no eval)
+          FIND_ARGS=(-type f -name 'kustomization.yaml' -not -path '*/.*')
           if [ -n "${{ inputs.kustomize-exclude-dirs }}" ]; then
             IFS=',' read -ra DIRS <<< "${{ inputs.kustomize-exclude-dirs }}"
             for dir in "${DIRS[@]}"; do
               dir=$(echo "$dir" | xargs)
-              EXCLUDE_ARGS="$EXCLUDE_ARGS -not -path \"./$dir/*\""
+              FIND_ARGS+=(-not -path "./$dir/*")
             done
           fi
 
-          eval "find . -type f -name 'kustomization.yaml' -not -path '*/\.*' $EXCLUDE_ARGS" | while IFS= read -r file; do
+          find . "${FIND_ARGS[@]}" | while IFS= read -r file; do
             dir=$(dirname "$file")
             filename=$(echo "$dir" | sed -e 's/^\.\///' -e 's/\//-/g')
             echo "Building $dir into $filename.yaml..."
-            kubectl kustomize "$dir" > "./.trivy-rendered/$filename.yaml" 2>&1 || echo "⚠️ Failed to render $dir (skipping)"
+            # 2>/dev/null: prevent kustomize warnings from corrupting rendered YAML
+            kubectl kustomize "$dir" > "./.trivy-rendered/$filename.yaml" 2>/dev/null \
+              || echo "⚠️ Failed to render $dir (skipping)"
           done
 
           # Cleanup temp mount

@@ -76,17 +76,21 @@ jobs:
           echo "rules=$RULES" >> "$GITHUB_OUTPUT"
           echo "Using rulesets: $RULES"
 
-      - name: "Semgrep SAST (SARIF)"
+      - name: "Semgrep SAST"
+        id: semgrep
         run: |
           pip install semgrep==1.167.0 --quiet
           configs=()
           for config in $SEMGREP_RULES; do
             configs+=(--config "$config")
           done
-          semgrep scan "${configs[@]}" --sarif --output semgrep-js.sarif "$SCAN_PATH" || true
+          # Single scan: emit SARIF for Security tab + capture exit code for gate
+          semgrep scan "${configs[@]}" --sarif --output semgrep-js.sarif "$SCAN_PATH"
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
         env:
           SEMGREP_RULES: ${{ steps.rules.outputs.rules }}
           SCAN_PATH: ${{ inputs.scan-path }}
+        continue-on-error: true  # gate enforced below; don't short-circuit SARIF upload
 
       - name: "Upload SARIF"
         if: always()
@@ -97,14 +101,7 @@ jobs:
           category: sast-javascript
 
       - name: "Enforce Gate"
-        if: ${{ inputs.exit-code == '1' }}
+        if: ${{ inputs.exit-code == '1' && steps.semgrep.outputs.exit_code != '0' }}
         run: |
-          pip install semgrep==1.167.0 --quiet
-          configs=()
-          for config in $SEMGREP_RULES; do
-            configs+=(--config "$config")
-          done
-          semgrep scan "${configs[@]}" --error "$SCAN_PATH"
-        env:
-          SEMGREP_RULES: ${{ steps.rules.outputs.rules }}
-          SCAN_PATH: ${{ inputs.scan-path }}
+          echo "Semgrep found findings (exit ${{ steps.semgrep.outputs.exit_code }}). Blocking pipeline."
+          exit 1

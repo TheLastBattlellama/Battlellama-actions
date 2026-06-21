@@ -60,9 +60,18 @@ jobs:
         run: |
           curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \
             | tar -xz -C /usr/local/bin gitleaks
-          gitleaks detect --source . --redact --exit-code "${EXIT_CODE}"
+
+          # On PRs: scan only the diff (origin/<base>..HEAD) to avoid rescanning full history
+          if [ -n "$BASE_REF" ]; then
+            LOG_OPTS="origin/${BASE_REF}..HEAD"
+            echo "PR mode: scanning commits ${LOG_OPTS}"
+            gitleaks detect --source . --redact --log-opts "$LOG_OPTS" --exit-code "${EXIT_CODE}"
+          else
+            gitleaks detect --source . --redact --exit-code "${EXIT_CODE}"
+          fi
         env:
           EXIT_CODE: ${{ inputs.exit-code }}
+          BASE_REF: ${{ github.base_ref }}
 
       - name: "Dependency Scanning (Trivy FS SARIF)"
         if: ${{ inputs.trivy-fs-enabled == 'true' }}
