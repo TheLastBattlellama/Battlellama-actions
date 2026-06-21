@@ -64,6 +64,9 @@ jobs:
   test-sast-js:
     name: "Integration: SAST JavaScript"
     needs: [lint, validate-semgrep-configs]
+    permissions:
+      contents: read
+      security-events: write
     uses: ./.github/workflows/sast-javascript.yml
     with:
       framework: react
@@ -72,6 +75,9 @@ jobs:
   test-sast-python-generic:
     name: "Integration: SAST Python (generic)"
     needs: [lint, validate-semgrep-configs]
+    permissions:
+      contents: read
+      security-events: write
     uses: ./.github/workflows/sast-python.yml
     with:
       framework: generic
@@ -80,6 +86,9 @@ jobs:
   test-sast-python-django:
     name: "Integration: SAST Python (django)"
     needs: [lint, validate-semgrep-configs]
+    permissions:
+      contents: read
+      security-events: write
     uses: ./.github/workflows/sast-python.yml
     with:
       framework: django
@@ -88,6 +97,9 @@ jobs:
   test-sast-python-fastapi:
     name: "Integration: SAST Python (fastapi)"
     needs: [lint, validate-semgrep-configs]
+    permissions:
+      contents: read
+      security-events: write
     uses: ./.github/workflows/sast-python.yml
     with:
       framework: fastapi
@@ -96,6 +108,9 @@ jobs:
   test-sast-python-flask:
     name: "Integration: SAST Python (flask)"
     needs: [lint, validate-semgrep-configs]
+    permissions:
+      contents: read
+      security-events: write
     uses: ./.github/workflows/sast-python.yml
     with:
       framework: flask
