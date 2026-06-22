@@ -5,10 +5,14 @@
 # clean fixtures before changes reach users of this action library.
 #
 # Jobs:
-#   lint         — actionlint (catches expression errors, shellcheck issues)
+#   lint                     — actionlint (catches expression errors, shellcheck issues)
 #   validate-semgrep-configs — verifies all referenced registry packs exist
-#   test-sast-js — calls sast-javascript.yml against tests/fixtures/js
-#   test-sast-py-* — calls sast-python.yml against tests/fixtures/python
+#   test-sast-js             — sast-javascript.yml against tests/fixtures/js
+#   test-sast-py-*           — sast-python.yml against tests/fixtures/python
+#   test-security-scan       — security-scan.yml against repo root (warn-only)
+#   test-gitleaks            — gitleaks.yml against repo (warn-only, PR diff aware)
+#   test-iac-scan            — iac-scan.yml against tests/fixtures/iac (warn-only)
+#   test-docker-build        — docker-build.yml dry-run (push:false, scan disabled)
 
 name: "🔍 CI"
 
@@ -115,3 +119,46 @@ jobs:
     with:
       framework: flask
       scan-path: tests/fixtures/python
+
+  test-security-scan:
+    name: "Integration: Security Scan"
+    needs: lint
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/security-scan.yml
+    with:
+      exit-code: "0"  # warn-only: repo has no real CVEs but avoids false-positive blocks
+
+  test-gitleaks:
+    name: "Integration: Gitleaks"
+    needs: lint
+    permissions:
+      contents: read
+    uses: ./.github/workflows/gitleaks.yml
+    with:
+      exit-code: "0"  # warn-only: CI repo itself is clean but avoids edge cases
+
+  test-iac-scan:
+    name: "Integration: IaC Scan"
+    needs: lint
+    permissions:
+      contents: read
+      security-events: write
+    uses: ./.github/workflows/iac-scan.yml
+    with:
+      scan-path: tests/fixtures/iac
+      exit-code: "0"  # warn-only: fixture is clean but Trivy rules evolve
+
+  test-docker-build:
+    name: "Integration: Docker Build (dry-run)"
+    needs: lint
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/docker-build.yml
+    with:
+      image-name: "ci-test"
+      dockerfile-path: "tests/fixtures/docker/Dockerfile"
+      push: false
+      scan-after-build: false  # no registry push — image scan requires pushed digest

@@ -40,15 +40,15 @@ on:
         required: false
         type: string
       push:
-        description: "Push image to registry (set to 'false' for dry-run builds)"
-        default: "true"
+        description: "Push image to registry (false = dry-run build)"
+        default: true
         required: false
-        type: string
+        type: boolean
       scan-after-build:
         description: "Run Trivy CVE scan on the built image"
-        default: "true"
+        default: true
         required: false
-        type: string
+        type: boolean
       scan-severity:
         description: "Trivy scan severity filter"
         default: "CRITICAL,HIGH"
@@ -78,7 +78,7 @@ jobs:
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4
 
       - name: "Login to GHCR"
-        if: ${{ inputs.push == 'true' }}
+        if: ${{ inputs.push }}
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4
         with:
           registry: ghcr.io
@@ -107,15 +107,15 @@ jobs:
           context: ${{ inputs.build-context }}
           file: ${{ inputs.dockerfile-path }}
           push: ${{ inputs.push }}
-          load: ${{ inputs.push != 'true' }}
+          load: ${{ !inputs.push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: ${{ inputs.build-args }}
-          platforms: ${{ inputs.push == 'true' && inputs.platforms || 'linux/amd64' }}
+          platforms: ${{ inputs.push && inputs.platforms || 'linux/amd64' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          sbom: ${{ inputs.push == 'true' }}
-          provenance: ${{ inputs.push == 'true' && 'mode=max' || 'false' }}
+          sbom: ${{ inputs.push }}
+          provenance: ${{ inputs.push && 'mode=max' || 'false' }}
 
       - name: "Resolve scan image ref"
         id: ref
@@ -127,13 +127,13 @@ jobs:
             echo "image=$(echo '${{ steps.meta.outputs.tags }}' | head -n1)" >> "$GITHUB_OUTPUT"
           fi
         env:
-          PUSH: ${{ inputs.push }}
+          PUSH: ${{ inputs.push && 'true' || 'false' }}
           OWNER: ${{ steps.owner.outputs.name }}
           IMAGE_NAME: ${{ inputs.image-name }}
           DIGEST: ${{ steps.build.outputs.digest }}
 
       - name: "Image CVE Scan (Trivy — SARIF)"
-        if: ${{ inputs.scan-after-build == 'true' }}
+        if: ${{ inputs.scan-after-build }}
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: ${{ steps.ref.outputs.image }}
@@ -152,7 +152,7 @@ jobs:
           category: docker-image
 
       - name: "Enforce Image Scan Gate"
-        if: ${{ inputs.scan-after-build == 'true' && inputs.scan-exit-code == '1' }}
+        if: ${{ inputs.scan-after-build && inputs.scan-exit-code == '1' }}
         env:
           IMAGE_REF: ${{ steps.ref.outputs.image }}
           SEVERITY: ${{ inputs.scan-severity }}
