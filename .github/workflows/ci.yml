@@ -155,7 +155,8 @@ jobs:
     needs: lint
     permissions:
       contents: read
-      packages: read
+      packages: write
+      security-events: write
     uses: ./.github/workflows/docker-build.yml
     with:
       image-name: "ci-test"
