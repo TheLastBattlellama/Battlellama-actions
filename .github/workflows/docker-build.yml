@@ -126,6 +126,7 @@ jobs:
           output: trivy-image-results.sarif
           severity: ${{ inputs.scan-severity }}
           ignore-unfixed: true
+          trivyignores: .trivyignore
 
       - name: "Upload Image Scan SARIF"
         if: always()
@@ -142,5 +143,6 @@ jobs:
             --format table \
             --severity "${{ inputs.scan-severity }}" \
             --ignore-unfixed \
+            --ignorefile .trivyignore \
             --exit-code 1 \
             "${{ inputs.push == 'true' && format('ghcr.io/{0}/{1}@{2}', steps.owner.outputs.name, inputs.image-name, steps.build.outputs.digest) || inputs.image-name }}"
