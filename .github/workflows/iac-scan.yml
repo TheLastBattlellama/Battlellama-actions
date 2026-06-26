@@ -130,7 +130,7 @@ jobs:
           SCAN_REF: ${{ inputs.use-kustomize == 'true' && './.trivy-rendered' || inputs.scan-path }}
           SKIP_FILES: ${{ inputs.skip-files }}
         run: |
-          args=(--exit-code 1 --severity "$SEVERITY" --ignore-unfixed)
+          args=(--exit-code 1 --severity "$SEVERITY")
           if [ -n "$SKIP_FILES" ]; then
             args+=(--skip-files "$SKIP_FILES")
           fi
